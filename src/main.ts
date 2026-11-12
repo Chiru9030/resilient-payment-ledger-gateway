@@ -45,7 +45,13 @@ async function bootstrap() {
 
   let server: ReturnType<typeof createGatewayServer> | undefined;
   if (serviceRole === 'all' || serviceRole === 'api') {
-    server = createGatewayServer({ ledger, idempotency, billing, webhooks });
+    server = createGatewayServer({
+      ledger,
+      idempotency,
+      billing,
+      webhooks,
+      apiKey: process.env.API_KEY,
+    });
     server.listen(port, () => {
       console.log(`[gateway:${serviceRole}] listening on :${port}`);
     });
@@ -71,3 +77,4 @@ bootstrap().catch((err) => {
   console.error('Fatal startup error:', err);
   process.exit(1);
 });
+

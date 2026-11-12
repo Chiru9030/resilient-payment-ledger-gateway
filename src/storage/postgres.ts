@@ -296,8 +296,11 @@ class PostgresTxContext implements TxContext {
     key: string,
     endpoint: string,
     requestHash: string,
+    lockTimeoutMs = 30_000,
+    ttlMs = 86_400_000,
   ): Promise<{ claimed: true } | { claimed: false; existing: IdempotencyRecord }> {
-    const now = new Date().toISOString();
+    const nowMs = Date.now();
+    const now = new Date(nowMs).toISOString();
     const res = await this.client.query(
       `INSERT INTO idempotency_records
        (key, endpoint, request_hash, status, response_status, response_body, created_at, updated_at)
@@ -307,10 +310,25 @@ class PostgresTxContext implements TxContext {
     );
     if ((res.rowCount ?? 0) === 1) return { claimed: true };
     const existingRes = await this.client.query(
-      'SELECT * FROM idempotency_records WHERE key = $1 AND endpoint = $2',
+      'SELECT * FROM idempotency_records WHERE key = $1 AND endpoint = $2 FOR UPDATE',
       [key, endpoint],
     );
     const ex = existingRes.rows[0];
+    const updatedMs = new Date(String(ex.updated_at)).getTime();
+    const status = String(ex.status);
+    const isStaleLock = status === 'IN_PROGRESS' && nowMs - updatedMs > lockTimeoutMs;
+    const isExpired = status === 'COMPLETED' && nowMs - updatedMs > ttlMs;
+
+    if (isStaleLock || isExpired) {
+      await this.client.query(
+        `UPDATE idempotency_records
+         SET request_hash = $1, status = 'IN_PROGRESS', response_status = NULL, response_body = NULL, updated_at = $2
+         WHERE key = $3 AND endpoint = $4`,
+        [requestHash, now, key, endpoint],
+      );
+      return { claimed: true };
+    }
+
     return {
       claimed: false,
       existing: {
@@ -584,3 +602,4 @@ class PostgresTxContext implements TxContext {
     return res.rows.map((r) => this.mapOutboxEvent(r));
   }
 }
+

@@ -94,4 +94,18 @@ describe('IdempotencyService', () => {
     const res1 = await p1;
     expect(res1.statusCode).toBe(201);
   });
+
+  it('reclaims a stale IN_PROGRESS lock after lockTimeoutMs expires', async () => {
+    const claim1 = await storage.withTransaction((tx) =>
+      tx.claimIdempotencyKey('stale-key', 'POST /v1/transfers', 'hash1', 1000, 60_000),
+    );
+    expect(claim1.claimed).toBe(true);
+
+    // With lockTimeoutMs = -1 (already expired), a subsequent claim recovers the lock
+    const claim2 = await storage.withTransaction((tx) =>
+      tx.claimIdempotencyKey('stale-key', 'POST /v1/transfers', 'hash1', -1, 60_000),
+    );
+    expect(claim2.claimed).toBe(true);
+  });
 });
+

@@ -67,3 +67,4 @@ export function verifyWebhookSignature(
   if (a.length !== b.length || a.length === 0) return false;
   return timingSafeEqual(a, b);
 }
+

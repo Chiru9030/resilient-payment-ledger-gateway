@@ -7,3 +7,4 @@ COPY src ./src
 RUN npm install -D typescript @types/node && npm run build && npm prune --omit=dev
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
+

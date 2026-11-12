@@ -112,3 +112,4 @@ export interface WebhookOutboxEvent {
   createdAt: string;
   updatedAt: string;
 }
+

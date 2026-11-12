@@ -83,3 +83,18 @@ export class InvalidStateError extends GatewayError {
     super(409, 'invalid_state_transition', message, details);
   }
 }
+
+export class PayloadTooLargeError extends GatewayError {
+  constructor(maxBytes: number) {
+    super(413, 'payload_too_large', `Request body exceeds maximum size of ${maxBytes} bytes`, {
+      maxBytes,
+    });
+  }
+}
+
+export class UnauthorizedError extends GatewayError {
+  constructor(message = 'Missing or invalid API key') {
+    super(401, 'unauthorized', message);
+  }
+}
+

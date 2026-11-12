@@ -83,7 +83,13 @@ export interface TxContext {
   listAccountEntries(accountId: string, limit?: number): Promise<LedgerEntry[]>;
 
   // Idempotency
-  claimIdempotencyKey(key: string, endpoint: string, requestHash: string): Promise<
+  claimIdempotencyKey(
+    key: string,
+    endpoint: string,
+    requestHash: string,
+    lockTimeoutMs?: number,
+    ttlMs?: number,
+  ): Promise<
     | { claimed: true }
     | { claimed: false; existing: IdempotencyRecord }
   >;
@@ -140,3 +146,4 @@ export interface StorageAdapter {
   withTransaction<T>(fn: (tx: TxContext) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
+

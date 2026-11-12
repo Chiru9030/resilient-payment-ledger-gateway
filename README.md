@@ -35,3 +35,4 @@ Or run the full distributed microservices stack with PostgreSQL + Redis:
 ```bash
 docker compose up --build
 ```
+

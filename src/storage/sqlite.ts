@@ -331,8 +331,11 @@ class SqliteTxContext implements TxContext {
     key: string,
     endpoint: string,
     requestHash: string,
+    lockTimeoutMs = 30_000,
+    ttlMs = 86_400_000,
   ): Promise<{ claimed: true } | { claimed: false; existing: IdempotencyRecord }> {
-    const now = new Date().toISOString();
+    const nowMs = Date.now();
+    const now = new Date(nowMs).toISOString();
     const info = this.db
       .prepare(
         `INSERT OR IGNORE INTO idempotency_records
@@ -348,6 +351,22 @@ class SqliteTxContext implements TxContext {
     const existing = this.db
       .prepare('SELECT * FROM idempotency_records WHERE key = ? AND endpoint = ?')
       .get(key, endpoint) as Record<string, unknown>;
+
+    const updatedMs = new Date(String(existing.updated_at)).getTime();
+    const status = String(existing.status);
+    const isStaleLock = status === 'IN_PROGRESS' && nowMs - updatedMs > lockTimeoutMs;
+    const isExpired = status === 'COMPLETED' && nowMs - updatedMs > ttlMs;
+
+    if (isStaleLock || isExpired) {
+      this.db
+        .prepare(
+          `UPDATE idempotency_records
+           SET request_hash = ?, status = 'IN_PROGRESS', response_status = NULL, response_body = NULL, updated_at = ?
+           WHERE key = ? AND endpoint = ?`,
+        )
+        .run(requestHash, now, key, endpoint);
+      return { claimed: true };
+    }
 
     return {
       claimed: false,

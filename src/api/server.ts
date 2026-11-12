@@ -1,17 +1,20 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { BillingService } from '../services/billing.service.js';
 import { IdempotencyService } from '../services/idempotency.service.js';
 import { LedgerService } from '../services/ledger.service.js';
 import { WebhookService } from '../services/webhook.service.js';
-import { GatewayError, ValidationError } from '../shared/errors.js';
+import { GatewayError, PayloadTooLargeError, UnauthorizedError, ValidationError } from '../shared/errors.js';
 import type { AccountType, BillingInterval, Currency, WebhookDeliveryStatus } from '../shared/types.js';
+
+const MAX_BODY_BYTES = 1_048_576; // 1 MiB
 
 export interface GatewayDependencies {
   ledger: LedgerService;
   idempotency: IdempotencyService;
   billing: BillingService;
   webhooks: WebhookService;
+  apiKey?: string;
 }
 
 export function createGatewayServer(deps: GatewayDependencies): Server {
@@ -26,6 +29,10 @@ export function createGatewayServer(deps: GatewayDependencies): Server {
 
       if (method === 'GET' && path === '/health') {
         return sendJson(res, 200, { status: 'ok', service: 'resilient-payment-ledger-gateway' });
+      }
+
+      if (deps.apiKey) {
+        verifyApiKey(req, deps.apiKey);
       }
 
       // Accounts
@@ -223,10 +230,29 @@ function getIdempotencyKey(req: IncomingMessage): string | undefined {
   return val;
 }
 
+function verifyApiKey(req: IncomingMessage, expected: string): void {
+  const headerKey = (req.headers['x-api-key'] as string | undefined)?.trim();
+  const auth = (req.headers['authorization'] as string | undefined)?.trim();
+  const bearer = auth?.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : undefined;
+  const provided = headerKey || bearer || '';
+
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length === 0 || a.length !== b.length || !timingSafeEqual(a, b)) {
+    throw new UnauthorizedError();
+  }
+}
+
 async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
   for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buf.length;
+    if (totalBytes > MAX_BODY_BYTES) {
+      throw new PayloadTooLargeError(MAX_BODY_BYTES);
+    }
+    chunks.push(buf);
   }
   const raw = Buffer.concat(chunks).toString('utf8').trim();
   if (!raw) return {} as T;
@@ -245,3 +271,4 @@ function sendJson(res: ServerResponse, statusCode: number, data: unknown): void 
   });
   res.end(body);
 }
+

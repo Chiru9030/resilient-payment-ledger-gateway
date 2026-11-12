@@ -103,3 +103,4 @@ describe('LedgerService — ACID, Double-Entry & Concurrency', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });
+

@@ -87,3 +87,4 @@ describe('BillingService — Invoices & Subscriptions', () => {
     expect((await billing.getSubscription(sub.id)).status).toBe('PAST_DUE');
   });
 });
+
