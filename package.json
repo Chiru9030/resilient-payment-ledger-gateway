@@ -1,0 +1,24 @@
+{
+  "name": "resilient-payment-ledger-gateway",
+  "version": "1.0.0",
+  "description": "Microservices-based payment gateway and double-entry ledger simulator with idempotency, ACID/OCC transactions, and exponential-backoff webhook delivery.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/main.ts",
+    "worker:webhooks": "SERVICE_ROLE=webhook-worker tsx src/main.ts",
+    "worker:billing": "SERVICE_ROLE=billing-worker tsx src/main.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
